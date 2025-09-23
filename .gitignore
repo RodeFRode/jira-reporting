@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.python-version
+.venv/
+.env
+.env.*
+!*.env.example
+*.log
+*.sqlite
+.pytest_cache/
+.mypy_cache/
+.cache/
+
+# IDE/OS
+.vscode/
+.idea/
+.DS_Store
+
+# Build/Dist
+build/
+dist/
+*.egg-info/
+
+# Project specifics
+secrets/
+.secrets.baseline
