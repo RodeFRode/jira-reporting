@@ -44,45 +44,58 @@ class JiraClient:
 
     def search_issues_stream(
         self,
-        jql: str,
         *,
-        page_size: int = 100,
-        expand: Optional[Sequence[str]] = None,
-        fields: Optional[Sequence[str]] = None,
-    ) -> Iterable[dict]:
+        jql: str,
+        start_at: int = 0,
+        page_size: int = 50,
+        fields: list[str] | None = None,
+        expand: list[str] | None = None,
+        validate_query: bool | None = None,  # <— NEU
+    ):
         """
-        Streamt Issues via POST /search. 'expand' wird als Query-Parameter gesendet.
+        Streamt Issues über POST /rest/api/2/search seitenweise.
+        - jql: komplette JQL, inkl. ORDER BY
+        - start_at, page_size: Pagination
+        - fields, expand: optionale Felder/Expands
+        - validate_query: wenn gesetzt, wird ins Payload als 'validateQuery' übernommen
+          (siehe Jira REST: POST /rest/api/2/search akzeptiert validateQuery boolean)
         """
-        start_at = 0
-        params = {}
-        if expand:
-            params["expand"] = ",".join(expand)
+        next_start = start_at
+        total = None
 
         while True:
-            payload: dict = {"jql": jql, "startAt": start_at, "maxResults": page_size}
+            payload = {
+                "jql": jql,
+                "startAt": next_start,
+                "maxResults": page_size,
+            }
             if fields is not None:
-                payload["fields"] = list(fields)
+                payload["fields"] = fields
+            if expand is not None:
+                payload["expand"] = expand
+            if validate_query is not None:
+                payload["validateQuery"] = bool(validate_query)  # <— NEU
 
-            r = self.client.post(SEARCH_PATH, params=params, json=payload)
-            if r.status_code != 200:
+            r = self.client.post(SEARCH_PATH, json=payload)
+            # httpx-Fehler klarer machen
+            if r.status_code >= 400:
                 raise httpx.HTTPStatusError(
                     f"Jira /search returned {r.status_code}. Body: {r.text}",
                     request=r.request,
                     response=r,
                 )
-            data = r.json()
 
-            issues = data.get("issues", [])
+            data = r.json()
+            issues = data.get("issues", []) or []
             for it in issues:
                 yield it
 
-            got = len(issues)
-            total = data.get("total")
-            start_at += got
-
-            if got == 0:
+            total = data.get("total", total)
+            returned = len(issues)
+            next_start += returned
+            if returned == 0:
                 break
-            if isinstance(total, int) and start_at >= total:
+            if total is not None and next_start >= total:
                 break
 
 
