@@ -13,3 +13,6 @@ dependencies = [
 [tool.setuptools]
 package-dir = {"" = "src"}
 packages = ["jira_reporting"]
+
+[project.scripts]
+jira-reporting = "jira_reporting.main:main"
