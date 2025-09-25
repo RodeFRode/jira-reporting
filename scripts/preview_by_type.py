@@ -1,17 +1,103 @@
+import json
 from pathlib import Path
 
 from jira_reporting.config import Settings
 from jira_reporting.jira_api import JiraClient
 
 
+_DICT_VALUE_KEYS = (
+    "displayName",
+    "name",
+    "value",
+    "summary",
+    "title",
+    "text",
+    "description",
+    "key",
+    "emailAddress",
+)
+
+
+def _format_issue_ref(issue):
+    if not isinstance(issue, dict):
+        return _format_field_value(issue)
+
+    key = issue.get("key") or issue.get("id")
+    summary = None
+    fields = issue.get("fields")
+    if isinstance(fields, dict):
+        summary = fields.get("summary") or fields.get("name")
+
+    if key and summary:
+        return f"{key} ({summary})"
+    if key:
+        return str(key)
+
+    summary = issue.get("summary") or issue.get("name")
+    if summary:
+        return _format_field_value(summary)
+
+    return json.dumps(issue, ensure_ascii=False)
+
+
+def _format_issue_link(link: dict) -> str:
+    type_info = link.get("type") if isinstance(link, dict) else None
+    relationship_out = type_info.get("outward") if isinstance(type_info, dict) else None
+    relationship_in = type_info.get("inward") if isinstance(type_info, dict) else None
+    type_name = type_info.get("name") if isinstance(type_info, dict) else None
+
+    parts: list[str] = []
+
+    if isinstance(link, dict):
+        if "outwardIssue" in link:
+            relation = relationship_out or type_name or "outward"
+            parts.append(f"{relation}: {_format_issue_ref(link['outwardIssue'])}")
+        if "inwardIssue" in link:
+            relation = relationship_in or type_name or "inward"
+            parts.append(f"{relation}: {_format_issue_ref(link['inwardIssue'])}")
+
+    if parts:
+        return "; ".join(parts)
+
+    return json.dumps(link, ensure_ascii=False)
+
+
 def _format_field_value(value):
-    if isinstance(value, list):
-        return ", ".join(_format_field_value(item) for item in value)
-    if isinstance(value, dict):
-        return ", ".join(f"{k}={_format_field_value(v)}" for k, v in value.items())
     if value is None:
         return "<none>"
-    return str(value)
+    if isinstance(value, bool):
+        return "yes" if value else "no"
+    if isinstance(value, (str, int, float)):
+        return str(value)
+    if isinstance(value, list):
+        if not value:
+            return "<none>"
+        parts = [p for p in (_format_field_value(item) for item in value) if p and p != "<none>"]
+        return ", ".join(parts) if parts else "<none>"
+    if isinstance(value, dict):
+        if "inwardIssue" in value or "outwardIssue" in value:
+            return _format_issue_link(value)
+        for key in _DICT_VALUE_KEYS:
+            candidate = value.get(key)
+            if candidate:
+                return _format_field_value(candidate)
+
+        # special case for paged results that embed "values" or "histories"
+        if "values" in value or "histories" in value:
+            entries = value.get("values")
+            if entries is None:
+                entries = value.get("histories")
+            return _format_field_value(entries)
+
+        items = []
+        for key in sorted(value):
+            nested = _format_field_value(value[key])
+            items.append(f"{key}={nested}")
+        if items:
+            return "{" + ", ".join(items) + "}"
+        return "<none>"
+
+    return json.dumps(value, ensure_ascii=False)
 
 
 def main() -> int:
