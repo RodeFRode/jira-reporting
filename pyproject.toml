@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "jira-reporting"
 version = "0.1.0"
 dependencies = [
-  "httpx==0.27.2",
+  "httpx==0.28.1",
   "python-dotenv==1.0.1"
 ]
 
