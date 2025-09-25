@@ -1,6 +1,0 @@
-# Lift selected custom fields into typed columns in fact_issue_snapshot (optional)
-issue_types:
-  Story:
-    story_points: { key: "customfield_10016", type: "numeric" }
-defaults:
-  epic_link: { key: "customfield_10008", type: "issue" }

@@ -1,29 +1,32 @@
-# Python
+# Bytecode / Caches
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
-.python-version
+*.so
+
+# Envs
 .venv/
-.env
-.env.*
-!*.env.example
-*.log
-*.sqlite
+venv/
+env/
+ENV/
+
+# Tool-Caches
 .pytest_cache/
 .mypy_cache/
-.cache/
+.pytype/
 
-# IDE/OS
+# Editors/IDE
 .vscode/
 .idea/
-.DS_Store
+*.code-workspace
 
-# Build/Dist
+# Packaging / Build
 build/
 dist/
 *.egg-info/
 
-# Project specifics
-secrets/
-.secrets.baseline
+# Local config
+.env
+*.crt
+*.pem
