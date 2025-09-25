@@ -98,6 +98,46 @@ class JiraClient:
             if total is not None and next_start >= total:
                 break
 
+    def _quote_jql_str(self, s: str) -> str:
+        # minimal robustes Quoting (Doppelte Anführungszeichen escapen)
+        return '"' + s.replace('"', r'\"') + '"'
+
+    def search_issues_by_type(
+        self,
+        base_jql: str,
+        per_type_fields: dict[str, list[str]],
+        *,
+        expand: list[str] | None = None,
+        page_size: int | None = None,
+        validate_query: bool = True,
+    ):
+        """
+        Führt mehrere Suchen aus – gruppiert nach Issue-Typ-Sets mit identischer Feldliste –
+        und liefert die Issues als ein gemeinsamer Generator zurück.
+
+        per_type_fields: z.B. {
+            "Bug":   ["key","summary","status","assignee","priority","issuetype","updated","created","changelog"],
+            "Story": ["key","summary","status","assignee","issuetype","customfield_12345"]
+        }
+        """
+        # Gruppe: gleiche Feldliste => gemeinsamer Call mit issuetype IN (...)
+        groups: dict[tuple[str, ...], list[str]] = {}
+        for itype, fields in per_type_fields.items():
+            canon = tuple(sorted(set(fields)))
+            groups.setdefault(canon, []).append(itype)
+
+        for fields_tuple, types in groups.items():
+            types_jql = ", ".join(self._quote_jql_str(t) for t in types)
+            jql = f"({base_jql}) AND issuetype in ({types_jql})"
+            # stream mit genau dieser Feldliste
+            for issue in self.search_issues_stream(
+                jql=jql,
+                page_size=page_size,
+                fields=list(fields_tuple),
+                expand=expand,
+                validate_query=validate_query,
+            ):
+                yield issue
 
 # Backward-compat: Tests importieren JiraAPI
 class JiraAPI(JiraClient):
