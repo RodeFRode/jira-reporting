@@ -83,10 +83,14 @@ class Settings:
             jql=jql,
         )
 
-    def build_client(self, transport: Optional[httpx.BaseTransport] = None) -> httpx.Client:
+    def build_client(self, transport: httpx.BaseTransport | None = None) -> httpx.Client:
         headers = {"Authorization": f"Bearer {self.pat}"}
         timeout = httpx.Timeout(self.timeout_s)
         verify = self.ca_bundle if self.ca_bundle else True
         return httpx.Client(
-            base_url=self.base_url, headers=headers, timeout=timeout, verify=verify, transport=transport
+            base_url=self.base_url,
+            headers=headers,
+            timeout=timeout,
+            verify=verify,
+            transport=transport,
         )

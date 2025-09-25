@@ -55,8 +55,20 @@ def extract_issues(
 
     for issue in client.search_issues_stream(jql=jql, page_size=page_size, fields=flds, expand=expand):
         if fetch_full_changelog:
-            ch = list(client.iter_issue_changelog(issue["key"], page_size=100))
-            issue["changelog"] = {"histories": ch}
+            iterator = client.iter_issue_changelog(issue["key"], page_size=100)
+            histories = []
+            meta: dict | None = None
+            while True:
+                try:
+                    histories.append(next(iterator))
+                except StopIteration as stop:
+                    meta = stop.value or {}
+                    break
+
+            payload = {"histories": histories}
+            if meta:
+                payload.update(meta)
+            issue["changelog"] = payload
         yield issue
 
     client.close()

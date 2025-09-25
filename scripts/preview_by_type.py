@@ -1,6 +1,18 @@
 from pathlib import Path
+
 from jira_reporting.config import Settings
 from jira_reporting.jira_api import JiraClient
+
+
+def _format_field_value(value):
+    if isinstance(value, list):
+        return ", ".join(_format_field_value(item) for item in value)
+    if isinstance(value, dict):
+        return ", ".join(f"{k}={_format_field_value(v)}" for k, v in value.items())
+    if value is None:
+        return "<none>"
+    return str(value)
+
 
 def main() -> int:
     env_path = Path(__file__).resolve().parents[1] / ".env"
@@ -22,10 +34,13 @@ def main() -> int:
         jql = f"({s.jql}) AND issuetype = \"{issuetype}\"" if s.jql else f'issuetype = "{issuetype}"'
         print(f"\n=== {issuetype} ===")
         for issue in client.search_issues_stream(jql=jql, fields=fields, validate_query=validate, page_size=s.page_size):
-            k = issue.get("key")
-            f = issue.get("fields") or {}
-            line = " | ".join(f"{name}={f.get(name)!r}" for name in fields)
-            print(f"{k}: {line}")
+            key = issue.get("key") or "<unknown>"
+            print(key)
+            field_values = issue.get("fields") or {}
+            for field_name in fields:
+                formatted = _format_field_value(field_values.get(field_name))
+                print(f"    {field_name}: {formatted}")
+            print()
 
     return 0
 
