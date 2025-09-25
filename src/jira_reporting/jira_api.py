@@ -6,6 +6,7 @@ from .config import Settings
 
 MYSELF_PATH = "/rest/api/2/myself"
 SEARCH_PATH = "/rest/api/2/search"
+CHANGELOG_PATH_TEMPLATE = "/rest/api/2/issue/{issue_key}/changelog"
 
 
 class JiraClient:
@@ -97,6 +98,51 @@ class JiraClient:
                 break
             if total is not None and next_start >= total:
                 break
+
+    def iter_issue_changelog(self, issue_key: str, page_size: int = 100):
+        """Streamt den kompletten Changelog eines Issues seitenweise."""
+
+        path = CHANGELOG_PATH_TEMPLATE.format(issue_key=issue_key)
+        next_start = 0
+        total = None
+        meta: dict[str, int] = {}
+
+        while True:
+            params = {"startAt": next_start, "maxResults": page_size}
+            r = self.client.get(path, params=params)
+            if r.status_code >= 400:
+                raise httpx.HTTPStatusError(
+                    f"Jira changelog for {issue_key} returned {r.status_code}. Body: {r.text}",
+                    request=r.request,
+                    response=r,
+                )
+
+            data = r.json()
+            histories = data.get("values")
+            if histories is None:
+                histories = data.get("histories", []) or []
+
+            # Meta-Informationen für den Aufrufer sammeln
+            if "startAt" in data and "startAt" not in meta:
+                meta["startAt"] = data["startAt"]
+            if "maxResults" in data:
+                meta["maxResults"] = data["maxResults"]
+            if "total" in data:
+                meta["total"] = data["total"]
+
+            for history in histories:
+                yield history
+
+            returned = len(histories)
+            total = data.get("total", total)
+            next_start += returned
+
+            if returned == 0:
+                break
+            if total is not None and next_start >= total:
+                break
+
+        return meta
 
 
 # Backward-compat: Tests importieren JiraAPI
