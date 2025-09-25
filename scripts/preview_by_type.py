@@ -30,6 +30,8 @@ def main() -> int:
 
     }
 
+    field_name_map = client.get_field_name_map()
+
     for issuetype, fields in type_fields.items():
         jql = f"({s.jql}) AND issuetype = \"{issuetype}\"" if s.jql else f'issuetype = "{issuetype}"'
         print(f"\n=== {issuetype} ===")
@@ -38,8 +40,10 @@ def main() -> int:
             print(key)
             field_values = issue.get("fields") or {}
             for field_name in fields:
-                formatted = _format_field_value(field_values.get(field_name))
-                print(f"    {field_name}: {formatted}")
+                field_id = field_name.strip()
+                label = field_name_map.get(field_id, field_id)
+                formatted = _format_field_value(field_values.get(field_id))
+                print(f"    {label}: {formatted}")
             print()
 
     return 0

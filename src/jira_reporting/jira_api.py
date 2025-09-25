@@ -6,6 +6,7 @@ from .config import Settings
 MYSELF_PATH = "/rest/api/2/myself"
 SEARCH_PATH = "/rest/api/2/search"
 CHANGELOG_PATH_TEMPLATE = "/rest/api/2/issue/{issue_key}/changelog"
+FIELDS_PATH = "/rest/api/2/field"
 
 
 class JiraClient:
@@ -13,6 +14,7 @@ class JiraClient:
         self.settings = settings
         self._owns_client = client is None
         self.client = client or settings.build_client()
+        self._field_name_cache: dict[str, str] | None = None
 
     # lifecycle
     def close(self) -> None:
@@ -144,6 +146,38 @@ class JiraClient:
                 break
 
         return meta
+
+    def _ensure_field_names_cached(self) -> None:
+        if self._field_name_cache is not None:
+            return
+
+        r = self.client.get(FIELDS_PATH)
+        if r.status_code >= 400:
+            raise httpx.HTTPStatusError(
+                f"Jira /field returned {r.status_code}. Body: {r.text}",
+                request=r.request,
+                response=r,
+            )
+
+        mapping: dict[str, str] = {}
+        for field in r.json():
+            field_id = field.get("id")
+            if not field_id:
+                continue
+            mapping[field_id] = field.get("name") or field_id
+
+        self._field_name_cache = mapping
+
+    def get_field_name_map(self) -> dict[str, str]:
+        self._ensure_field_names_cached()
+        # return a shallow copy to avoid accidental external mutation
+        return dict(self._field_name_cache or {})
+
+    def get_field_display_name(self, field_id: str) -> str:
+        self._ensure_field_names_cached()
+        if self._field_name_cache is None:
+            return field_id
+        return self._field_name_cache.get(field_id, field_id)
 
     def _quote_jql_str(self, s: str) -> str:
         # minimal robustes Quoting (Doppelte Anführungszeichen escapen)
